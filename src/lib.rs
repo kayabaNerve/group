@@ -15,7 +15,7 @@ use core::iter::Sum;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use ff::PrimeField;
 use rand_core::{RngCore, TryRngCore};
-use subtle::{Choice, CtOption};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 pub mod cofactor;
 pub mod prime;
@@ -174,17 +174,21 @@ pub trait GroupEncoding: Sized {
     fn to_bytes(&self) -> Self::Repr;
 }
 
-/// `GroupEncoding` with an additional bound that byte representations be canonical.
-pub trait GroupCanonicalEncoding: Sized + GroupEncoding {
+/// A marker trait that `<Self as GroupEncoding>::to_bytes()` always yields a canonical encoding.
+pub trait GroupCanonicalEncoding:
+    Sized + Default + ConditionallySelectable + GroupEncoding
+{
     /// Attempts to deserialize a group element from its canonical encoding.
     ///
-    /// For any returned point, it will be returned if and only if the exact argument `bytes` was
-    /// passed into this function. This implies checking the coordinate(s) were reduced, and flags,
-    /// sign bits, etc were minimal.
-    fn from_canonical_bytes(bytes: &Self::Repr) -> CtOption<Self>;
-
-    /// Converts this element into its canonical byte encoding.
-    fn to_canonical_bytes(&self) -> Self::Repr;
+    /// For any returned point, it will be returned if and only if the exact representation present
+    /// within `bytes` was passed into this function. This implies checking the coordinate(s) were
+    /// reduced, and flags, sign bits, etc were minimal.
+    fn from_canonical_bytes(bytes: &Self::Repr) -> CtOption<Self> {
+        let res = Self::from_bytes(bytes).unwrap_or(Self::default());
+        // Safe due to the bound points are always encoded canonically
+        let canonical = res.to_bytes().as_ref().ct_eq(bytes.as_ref());
+        CtOption::new(res, canonical)
+    }
 }
 
 /// Affine representation of a point on an elliptic curve that has a defined uncompressed
