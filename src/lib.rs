@@ -174,6 +174,19 @@ pub trait GroupEncoding: Sized {
     fn to_bytes(&self) -> Self::Repr;
 }
 
+/// `GroupEncoding` with an additional bound that byte representations be canonical.
+pub trait GroupCanonicalEncoding: Sized + GroupEncoding {
+    /// Attempts to deserialize a group element from its canonical encoding.
+    ///
+    /// For any returned point, it will be returned if and only if the exact argument `bytes` was
+    /// passed into this function. This implies checking the coordinate(s) were reduced, and flags,
+    /// sign bits, etc were minimal.
+    fn from_canonical_bytes(bytes: &Self::Repr) -> CtOption<Self>;
+
+    /// Converts this element into its canonical byte encoding.
+    fn to_canonical_bytes(&self) -> Self::Repr;
+}
+
 /// Affine representation of a point on an elliptic curve that has a defined uncompressed
 /// encoding.
 pub trait UncompressedEncoding: Sized {
